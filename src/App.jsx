@@ -1,11 +1,9 @@
-// src/App.jsx
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 import { NeedsProvider } from './context/NeedsContext.jsx'; 
 import ChatPopup from './components/Chatpopup.jsx';
 
-// Pages and Components (using .jsx extensions)
 import Navbar from './components/Navbar.jsx'; 
 import Home from './pages/Home.jsx';
 import About from './pages/About.jsx';
@@ -13,34 +11,46 @@ import Auth from './pages/Auth.jsx';
 import DonorDashboard from './pages/DonorDashboard.jsx';
 import NGODashboard from './pages/NGODashboard.jsx';
 import NotFound from './pages/NotFound.jsx';
+import Profile from './pages/Profile.jsx'; // <--- NEW IMPORT for Profile Page
 
-// --- Helper for Protected Routes ---
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { isLoggedIn, user } = useAuth();
 
   if (!isLoggedIn) {
     return <Navigate to="/auth" replace />;
   }
-  if (allowedRoles && !allowedRoles.includes(user.role)) {
+  // If the user is logged in, but their role is not allowed, redirect to home
+  if (allowedRoles && user && !allowedRoles.includes(user.role)) {
     return <Navigate to="/" replace />;
   }
   return children;
 };
-// ------------------------------------
 
 const AppContent = () => {
-    // Note: Navbar is outside the container to span full width
+  const location = useLocation();
+  const [chatOpen, setChatOpen] = useState(false);
+
   return (
     <>
       <Navbar />
-      {/* CRITICAL FIX: Changed <main> to <div> but kept the class for content width/padding */}
-      <div className="container"> 
+      {/* We are using 'main' here instead of 'div' for better semantic HTML */}
+      <main className="container">
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/about" element={<About />} />
           <Route path="/auth" element={<Auth />} />
-
-          {/* Protected Dashboard Routes */}
+          
+          {/* 1. NEW ROUTE: Profile Page */}
+          {/* We'll make the profile page accessible to all logged-in users */}
+          <Route 
+            path="/profile" 
+            element={
+                <ProtectedRoute>
+                    <Profile />
+                </ProtectedRoute>
+            } 
+          />
+          
           <Route
             path="/donor-dashboard"
             element={
@@ -57,16 +67,27 @@ const AppContent = () => {
               </ProtectedRoute>
             }
           />
-
+          
           <Route path="*" element={<NotFound />} />
         </Routes>
-      </div> 
-      {/* ChatPopup remains outside the main content wrapper */}
-      <ChatPopup /> 
+      </main>
+      
+      {/* Chat Popup Logic */}
+      {!chatOpen && (
+        <div
+          className="chat-fab-open"
+          onClick={() => setChatOpen(true)}
+          title="Chat with support"
+        >
+          <span role="img" aria-label="chat">&#128172;</span>
+        </div>
+      )}
+      {chatOpen && (
+        <ChatPopup onClose={() => setChatOpen(false)} />
+      )}
     </>
   );
 };
-
 
 const App = () => {
   return (

@@ -9,7 +9,7 @@ const getPriorityStatus = (status) => {
     if (statusLower === 'low') return 'LOW PRIORITY';
     
     // Default for 'pending' or unanalyzed status
-    return 'PENDING';
+    return 'High Priority';
 }
 
 const getPriorityClass = (status) => {
@@ -19,7 +19,7 @@ const getPriorityClass = (status) => {
         return statusLower;
     }
     // Use 'pending' class for default/unaudited requests
-    return 'pending'; 
+    return 'high'; 
 }
 
 // ------------------------------------------------------------------

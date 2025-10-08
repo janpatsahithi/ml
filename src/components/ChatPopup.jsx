@@ -92,13 +92,13 @@ const ChatPopup = () => {
                 <div className="chat-header-left">
                     <span className="chat-avatar large">{SUPPORT_AVATAR}</span>
                     <div className="chat-header-info">
-                        <span className="chat-title">Support Team</span>
+                        <span className="chat-title">Support Team</span> &nbsp;| &nbsp;
                         <span className="chat-status">Last seen {LAST_SEEN_TIME}</span> 
                     </div>
                 </div>
                 <div className="chat-header-right">
                     <span className="header-icon notification-icon">&#128276;</span> 
-                    <span className="header-icon">&#x2304;</span> 
+                    
                     <span className="header-icon" onClick={handleClose}>&times;</span>
                 </div>
             </div>

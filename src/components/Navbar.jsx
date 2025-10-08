@@ -18,6 +18,7 @@ const Navbar = () => {
   // Determine which link is active
   const isActive = (path) => location.pathname === path;
   const isDashboardActive = location.pathname.includes('dashboard');
+  const isProfileActive = location.pathname === '/profile'; // <-- NEW: Check if Profile is active
 
   return (
     <nav className="navbar">
@@ -34,6 +35,11 @@ const Navbar = () => {
         
         {isLoggedIn ? (
           <>
+            {/* 1. NEW LINK: Profile Page */}
+            <Link to="/profile" className={isProfileActive ? 'active' : ''}>
+                Profile
+            </Link>
+
             {/* Logged in view: Show Dashboard Link */}
             <Link to={dashboardPath} className={isDashboardActive ? 'active' : ''}>
                 Dashboard
