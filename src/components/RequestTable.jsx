@@ -1,25 +1,33 @@
 import React from 'react';
 
-// --- Helper Functions to Map Status to Display Text and CSS Class ---
+// --- Helper Functions to Map Urgency (Uppercase) to Display Text and CSS Class ---
 
-const getPriorityStatus = (status) => {
-    const statusLower = status.toLowerCase();
-    if (statusLower === 'high') return 'HIGH PRIORITY';
-    if (statusLower === 'medium') return 'MEDIUM PRIORITY';
-    if (statusLower === 'low') return 'LOW PRIORITY';
-    
-    // Default for 'pending' or unanalyzed status
-    return 'High Priority';
+const getPriorityStatus = (urgency) => {
+    // We check the uppercase input directly first for performance and clarity
+    if (urgency === 'HIGH') return 'HIGH PRIORITY';
+    if (urgency === 'MEDIUM') return 'MEDIUM PRIORITY';
+    if (urgency === 'LOW') return 'LOW PRIORITY';
+    if (urgency === 'MANUAL') return 'MANUAL ENTRY'; // Handles the manual fallback
+
+    // Default for UNSCORED or unexpected values
+    return 'MEDIUM PRIORITY';
 }
 
-const getPriorityClass = (status) => {
-    const statusLower = status.toLowerCase();
-    // Use the ML predicted status if it's one of the priority levels
-    if (['high', 'medium', 'low'].includes(statusLower)) {
-        return statusLower;
+const getPriorityClass = (urgency) => {
+    // We convert the input to lowercase only to match the desired CSS class names (high, medium, low)
+    const urgencyLower = urgency ? urgency.toLowerCase() : 'medium'; 
+    
+    if (urgencyLower === 'high') {
+        return 'high'; // CSS class: .high
     }
-    // Use 'pending' class for default/unaudited requests
-    return 'high'; 
+    if (urgencyLower === 'medium' || urgencyLower === 'manual') {
+        return 'medium'; // CSS class: .medium (neutral color)
+    }
+    if (urgencyLower === 'low') {
+        return 'low'; // CSS class: .low
+    }
+    
+    return 'medium'; // Default class
 }
 
 // ------------------------------------------------------------------
@@ -31,9 +39,7 @@ const RequestTable = ({ requests }) => {
             <table className="request-table">
                 <thead>
                     <tr>
-                        {/* Headers match your final desired layout */}
                         <th>Description</th>
-                        {/* CHANGED: Header from Status to Prediction */}
                         <th>Prediction</th> 
                         <th>Date</th>
                     </tr>
@@ -42,11 +48,15 @@ const RequestTable = ({ requests }) => {
                     {requests && requests.length > 0 ? (
                         requests.map(request => (
                             <tr key={request.id}>
-                                <td>{request.title}</td> 
+                                <td>{request.title || request.description}</td> 
                                 <td>
-                                    {/* CRITICAL FIX: Display status based on ML prediction */}
-                                    <span className={`priority-tag ${getPriorityClass(request.status)}`}>
-                                        {getPriorityStatus(request.status)}
+                                    {/* CRITICAL FIX APPLIED: Uses request.urgency for both helper functions */}
+                                    <span 
+                                        className={`priority-tag ${getPriorityClass(request.urgency)}`}
+                                        // Optional: Display confidence as a title tooltip
+                                        title={`Confidence: ${request.confidence ? (request.confidence * 100).toFixed(2) + '%' : 'N/A'}`}
+                                    >
+                                        {getPriorityStatus(request.urgency)}
                                     </span>
                                 </td>
                                 <td>{new Date(request.date || parseInt(request.id)).toLocaleDateString()}</td>

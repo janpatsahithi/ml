@@ -213,7 +213,7 @@ input.auth-input:focus, .modal-body form input:focus, .modal-body form select:fo
 .priority-tag { font-weight: 600; padding: 4px 8px; border-radius: 4px; font-size: 0.8em; }
 .priority-tag.high { background-color: #FFCDD2; color: #C62828; } 
 .priority-tag.low { background-color: #C8E6C9; color: #388E3C; } 
-.priority-tag.pending { background-color: #FFF9C4; color: #FBC02D; } 
+.priority-tag.medium { background-color: #FFF9C4; color: #FBC02D; } 
 
 /* About/Features Section (Retained) */
 .about-container { max-width: 1280px; margin: 24px auto; padding: 0 24px; }
@@ -779,3 +779,4 @@ footer {
         margin: 5px 0;
     }
 }
+

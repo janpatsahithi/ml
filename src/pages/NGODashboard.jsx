@@ -1,25 +1,29 @@
-// src/pages/NGODashboard.jsx
 import React, { useState, useRef } from "react";
-import RequestTable from "../components/RequestTable.jsx"; // <-- Uses the simplified table component
+import RequestTable from "../components/RequestTable.jsx";
 import Modal from "../components/Modal.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useNeeds } from "../context/NeedsContext.jsx";
+import axios from 'axios'; // <--- REQUIRED: For API communication
+
+// --- CONFIGURATION ---
+const ML_API_URL = "http://localhost:5000/predict";
+// ---------------------
 
 // --- ICON MAP --- (Using Unicode/Text)
 const ICON_MAP = {
     ClipboardList: "📋", 
-    Clock: "🕓",        
-    CheckCircle2: "✅",  
-    Brain: "🧠",         
-    Plus: "+",           
+    Clock: "🕓",     
+    CheckCircle2: "✅", 
+    Brain: "🧠",      
+    Plus: "+",      
     X: "×"
 };
 // ----------------
 
 // -----------------------------------------------------------------
-// EXTRACTED COMPONENT: RequestForm (Form logic remains the same)
+// EXTRACTED COMPONENT: RequestForm (Updated to receive isPredicting prop)
 // -----------------------------------------------------------------
-const RequestForm = ({ formData, handleInputChange, handlePostNeed, setIsModalOpen }) => {
+const RequestForm = ({ formData, handleInputChange, handlePostNeed, setIsModalOpen, isPredicting }) => {
     
     const handleCancel = () => {
         setIsModalOpen(false); 
@@ -28,7 +32,7 @@ const RequestForm = ({ formData, handleInputChange, handlePostNeed, setIsModalOp
     return (
         <form onSubmit={handlePostNeed}>
             <p style={{marginBottom: '15px', color: '#666', fontSize: '0.9em'}}>
-              Fill in all the details below. Our AI will analyze and assign priority automatically.
+                Fill in all the details below. Our AI will analyze and assign priority automatically.
             </p>
             
             {/* 1. Request Title */}
@@ -78,7 +82,7 @@ const RequestForm = ({ formData, handleInputChange, handlePostNeed, setIsModalOp
               value={formData.peopleAffected || ''}
             />
             
-            {/* 7. Resources Required (Changed id to name) */}
+            {/* 7. Resources Required */}
             <select name="resourceType" onChange={handleInputChange} value={formData.resourceType || ''} required>
                 <option value="">Select resource type *</option>
                 <option value="Funds">Funds</option>
@@ -87,14 +91,14 @@ const RequestForm = ({ formData, handleInputChange, handlePostNeed, setIsModalOp
                 <option value="Medical Supplies">Medical Supplies</option>
             </select>
 
-            {/* 8. Urgency Reason (Changed id to name) */}
+            {/* 8. Urgency Reason */}
             <select name="urgencyReason" onChange={handleInputChange} value={formData.urgencyReason || ''}>
                 <option value="">Select urgency reason</option>
                 <option value="Natural Disaster">Natural Disaster</option>
                 <option value="Immediate Need">Immediate Need</option>
             </select>
             
-            {/* 9. Timeline (Changed id to name) */}
+            {/* 9. Timeline */}
             <select name="timeline" onChange={handleInputChange} value={formData.timeline || ''}>
                 <option value="">Select timeline</option>
                 <option value="Immediate">Immediate</option>
@@ -112,8 +116,13 @@ const RequestForm = ({ formData, handleInputChange, handlePostNeed, setIsModalOp
             ></textarea>
 
             <div className="form-actions">
-              <button type="button" className="secondary-button" onClick={handleCancel}>Cancel</button>
-              <button type="submit" className="primary-button">Create Request</button>
+              <button type="button" className="secondary-button" onClick={handleCancel} disabled={isPredicting}>
+                Cancel
+              </button>
+              {/* Disable button while predicting */}
+              <button type="submit" className="primary-button" disabled={isPredicting}>
+                {isPredicting ? 'Analyzing...' : 'Create Request'}
+              </button>
             </div>
         </form>
     );
@@ -126,6 +135,7 @@ const NGODashboard = () => {
     const { needs: requests, addNeed: addRequest } = useNeeds(); 
     
     const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [isPredicting, setIsPredicting] = useState(false); // <--- NEW STATE FOR LOADING
     const [newRequest, setNewRequest] = useState({
         title: "", domain: "", state: "", district: "", localArea: "",
         peopleAffected: "", resourceType: "", urgencyReason: "",
@@ -136,11 +146,15 @@ const NGODashboard = () => {
         ? requests.filter(r => r.ngoId === currentUser?.id)
         : [];
 
+    // Calculate count of requests that have been analyzed by the ML model
+    const mlAnalyzedCount = visibleRequests.filter(r => r.urgency && r.urgency !== 'UNSCORED' && r.urgency !== 'MANUAL').length;
+
+
     const stats = [
         { title: "Total Requests", value: visibleRequests.length, icon: ICON_MAP.ClipboardList, description: "All time" },
         { title: "Open Requests", value: visibleRequests.filter(r => r.status === 'pending').length, icon: ICON_MAP.Clock, description: "Pending action" },
         { title: "Completed Requests", value: visibleRequests.filter(r => r.status === 'fulfilled').length, icon: ICON_MAP.CheckCircle2, description: "Successfully handled" },
-        { title: "ML Predictions", value: 0, icon: ICON_MAP.Brain, description: "AI analyzed" },
+        { title: "ML Predictions", value: mlAnalyzedCount, icon: ICON_MAP.Brain, description: "AI analyzed requests" }, // <--- UPDATED STAT
     ];
 
     const resetForm = () => {
@@ -153,40 +167,72 @@ const NGODashboard = () => {
     
     const handleInputChange = (e) => {
         const { name, value } = e.target;
-        setNewRequest(prev => ({ ...prev, [name]: value || '' }));
+        // Ensure peopleAffected is stored as a number/string, not a string/empty string
+        const newValue = name === 'peopleAffected' ? (value ? parseInt(value) : '') : value;
+        setNewRequest(prev => ({ ...prev, [name]: newValue || '' }));
     };
 
     const handleCreateRequest = async (e) => {
         e.preventDefault(); 
         const req = newRequest;
         
+        // Basic validation
         if (!req.title || !req.domain || !req.state || !req.district || !req.resourceType) {
             alert("Please fill in all required fields.");
             return;
         }
 
-        try {
-            const requestData = {
-                ...req,
-                ngoId: currentUser.id, 
-                description: req.description || req.title,
-                status: 'pending', 
-                date: new Date().toISOString().split('T')[0],
-                category: req.domain,
-            };
+        setIsPredicting(true); // START LOADING INDICATOR
 
-            const savedRequest = addRequest(requestData, currentUser.id); 
+        let predictedUrgency = "UNSCORED";
+        let confidence = 0;
+
+        // ---------------------------------------------
+        // 1. POST data to Flask ML endpoint for prediction
+        // ---------------------------------------------
+        try {
+            const mlResponse = await axios.post(ML_API_URL, req);
             
-            if (savedRequest) {
-                alert(`Request "${req.title}" created successfully!`);
-                resetForm(); 
-                setIsDialogOpen(false); 
-            } else {
-                alert("Failed to create request!");
-            }
+            // Extract the results from the Flask API
+            predictedUrgency = mlResponse.data.urgency || "UNKNOWN";
+            confidence = mlResponse.data.confidence || 0;
+            
         } catch (error) {
-            alert("An unknown error occurred during request submission.");
-            console.error("Submission error:", error);
+            console.error("ML Prediction failed. Saving request as MANUAL.", error);
+            // Fallback urgency if Flask server is down or returns error
+            predictedUrgency = "MANUAL"; 
+        } finally {
+            setIsPredicting(false); // STOP LOADING
+        }
+        
+        // ---------------------------------------------
+        // 2. Prepare the final request object with ML result
+        // ---------------------------------------------
+        const requestData = {
+            id: Date.now().toString(),
+            ngoId: currentUser.id, 
+            userName: currentUser.name, 
+            title: req.title,
+            description: req.description || req.title,
+            status: 'pending', 
+            date: new Date().toISOString().split('T')[0],
+            category: req.domain,
+            // ML RESULTS:
+            urgency: predictedUrgency, 
+            confidence: confidence,
+        };
+
+        // ---------------------------------------------
+        // 3. Store and Display Data (Update Context)
+        // ---------------------------------------------
+        const savedRequest = addRequest(requestData, currentUser.id); 
+        
+        if (savedRequest) {
+            alert(`Request "${req.title}" created successfully! Urgency: ${predictedUrgency}`);
+            resetForm(); 
+            setIsDialogOpen(false); 
+        } else {
+            alert("Failed to create request in local state!");
         }
     };
     
@@ -247,7 +293,13 @@ const NGODashboard = () => {
                     handleInputChange={handleInputChange}
                     handlePostNeed={handleCreateRequest}
                     setIsModalOpen={setIsDialogOpen}
+                    isPredicting={isPredicting} // Pass state to disable button
                 />
+                 {isPredicting && (
+                    <p style={{textAlign: 'center', color: '#FF9800', marginTop: '10px'}}>
+                        **{ICON_MAP.Brain} Analyzing Urgency...**
+                    </p>
+                )}
             </Modal>
         </div>
     );
